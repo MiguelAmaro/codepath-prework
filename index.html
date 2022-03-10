@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Hello World!</title>
+
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/script.js"></script>
+    
+  </head>
+  <body>       
+    <h1 class="title">Light and Sound Memory Game</h1>
+
+    <p class="desc">
+      Welcome to the light and sound memory game.
+      Repeat back the pattern by pressing the buttons.
+    </p>
+
+    <button id="startbtn" onclick="initGame()">
+      Start
+    </button>
+
+    <button id="stopbtn" class="hidden" onclick="endGame()">
+      Stop
+    </button>
+    
+    <h2 id="gameresult" class="hidden"></h2>
+    <p id="promptarea" class="hidden"></p>
+    
+    <div id="gameBtnArea">
+      <button id="btn01" onclick="guess(1)" onmousedown="pregamePlayTone(1)" onmouseup="pregameStopTone()"></button>
+      <button id="btn02" onclick="guess(2)" onmousedown="pregamePlayTone(2)" onmouseup="pregameStopTone()"></button>
+      <button id="btn03" onclick="guess(3)" onmousedown="pregamePlayTone(3)" onmouseup="pregameStopTone()"></button>
+      <button id="btn04" onclick="guess(4)" onmousedown="pregamePlayTone(4)" onmouseup="pregameStopTone()"></button>
+    </div>
+    
+  </body>
+</html>
