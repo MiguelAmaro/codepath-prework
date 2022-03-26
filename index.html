@@ -10,31 +10,38 @@
     <script src="/script.js"></script>
     
   </head>
-  <body>       
-    <h1 class="title">Light and Sound Memory Game</h1>
+  <body>
+    <canvas id="glCanvas">
+    </canvas>
+    <div class="container">
+      <div class="content">
+        <h1 class="title">Light<br> and<br>Sound<br> Memory Game</h1>
 
-    <p class="desc">
-      Welcome to the light and sound memory game.
-      Repeat back the pattern by pressing the buttons.
-    </p>
+        <p class="desc">
+          Welcome to the light and sound memory game.
+          Repeat back the pattern by pressing the buttons.
+        </p>
 
-    <button id="startbtn" onclick="initGame()">
-      Start
-    </button>
+        <button id="startButton" onclick="StartButtonHandler()">
+          Start Round
+        </button>
 
-    <button id="stopbtn" class="hidden" onclick="endGame()">
-      Stop
-    </button>
-    
-    <h2 id="gameresult" class="hidden"></h2>
-    <p id="promptarea" class="hidden"></p>
-    
-    <div id="gameBtnArea">
-      <button id="btn01" onclick="guess(1)" onmousedown="pregamePlayTone(1)" onmouseup="pregameStopTone()"></button>
-      <button id="btn02" onclick="guess(2)" onmousedown="pregamePlayTone(2)" onmouseup="pregameStopTone()"></button>
-      <button id="btn03" onclick="guess(3)" onmousedown="pregamePlayTone(3)" onmouseup="pregameStopTone()"></button>
-      <button id="btn04" onclick="guess(4)" onmousedown="pregamePlayTone(4)" onmouseup="pregameStopTone()"></button>
+        <button id="stopButton" class="hidden" onclick="StopButtonHandler()">
+          Stop Round
+        </button>
+
+        <div id="gameStatus" class="hidden"></div>
+
+        <div id="gameButtonArea">
+          <button id="Button01" onclick="SoundButtonClickHandler(1)" onmousedown="SoundButtonPressHandler(1)" onmouseup="SoundButtonReleaseHandler()"></button>
+          <button id="Button02" onclick="SoundButtonClickHandler(2)" onmousedown="SoundButtonPressHandler(2)" onmouseup="SoundButtonReleaseHandler()"></button>
+          <button id="Button03" onclick="SoundButtonClickHandler(3)" onmousedown="SoundButtonPressHandler(3)" onmouseup="SoundButtonReleaseHandler()"></button>
+          <button id="Button04" onclick="SoundButtonClickHandler(4)" onmousedown="SoundButtonPressHandler(4)" onmouseup="SoundButtonReleaseHandler()"></button>
+          <button id="Button05" onclick="SoundButtonClickHandler(5)" onmousedown="SoundButtonPressHandler(5)" onmouseup="SoundButtonReleaseHandler()"></button>
+          <button id="Button06" onclick="SoundButtonClickHandler(6)" onmousedown="SoundButtonPressHandler(6)" onmouseup="SoundButtonReleaseHandler()"></button>
+        </div>
+      </div>
     </div>
-    
   </body>
 </html>
+

@@ -1,72 +1,121 @@
-
-body
-{ 
-  background-color: slategrey;
-  color: white;
-  font-family: helvetica, arial, sans-serif;
-  margin: 2em;
+* {
+  margin: 0px;
+  padding-bottom: 10px;
 }
 
-h1
-{
+body {
+  background-color: rgb(0, 0, 0);
+  color: white;
+  font-family: helvetica, arial, sans-serif;
+}
+
+h1 {
+  padding-top: 40px;
   font-family: verdana, arial, sans-serif;
 }
 
-button
-{
+button {
   padding: 10px;
   border-radius: 10px;
 }
 
-#gameBtnArea > button
-{
-  width: 200px;
-  height: 200px;
-  margin: 2px;
+.container {
+  opacity: 100%;
+  margin: auto;
+  width: 400px;
 }
 
-#btn01
-{
+.content {
+}
+
+#glCanvas {
+  margin: 0px;
+  padding: 0px;
+  position: absolute;
+  opacity: 70%;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+#gameButtonArea {
+  margin-top: 20px;
+  display: flex;
+  align-content: space-between;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 10px;
+  column-gap: 0px;
+  width: 400px;
+  height: 400px;
+}
+
+#gameButtonArea > button {
+  align-self: center;
+  flex-basis: auto;
+  width: 49%;
+  height: 49%;
+}
+
+#Button01 {
   background: #88ff88;
 }
 
-#btn01:active, #btn01.lit
-{
-  background: #00ff00;
+#Button01:active,
+#Button01.lit {
+  background: #008800;
 }
 
-#btn02
-{
+/************************************/
+#Button02 {
   background: #88ffff;
 }
 
-#btn02:active, #btn02.lit
-{
-  background: #00ffff;
+#Button02:active,
+#Button02.lit {
+  background: #0088ff;
 }
 
-#btn03
-{
+/************************************/
+#Button03 {
   background: #ffff88;
 }
 
-#btn03:active, #btn03.lit
-{
-  background: #ffff00;
+#Button03:active,
+#Button03.lit {
+  background: #888800;
 }
 
-#btn04
-{
-  background: #ff8888;
+/************************************/
+#Button04 {
+  background: #ff5353;
 }
 
-#btn04:active, #btn04.lit
-{
-  background: #ff0000;
+#Button04:active,
+#Button04.lit {
+  background: #570000;
 }
 
-.hidden
-{
+/************************************/
+#Button05 {
+  background: #ffaa44;
+}
+
+#Button05:active,
+#Button05.lit {
+  background: #ff7700;
+}
+
+/************************************/
+#Button06 {
+  background: #ff88ff;
+}
+
+#Button06:active,
+#Button06.lit {
+  background: #aa00aa;
+}
+
+.hidden {
   display: none;
 }
-
