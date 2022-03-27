@@ -1,31 +1,93 @@
+class sequence {
+  //no sharps/flats
+  static PitchToFreqTable = {
+    "c3": 130.81,
+    "d3": 146.83,
+    "e3": 164.81,
+    "f3": 174.61,
+    "g3": 196.00,
+    "a3": 220.00,
+    "b3": 246.94,
+
+    "c4": 261.63,
+    "d4": 293.66,
+    "e4": 329.63,
+    "f4": 349.23,
+    "g4": 392.00,
+    "a4": 440.00,
+    "b4": 293.88,
+
+    "c5": 523.25,
+    "d5": 587.33,
+    "e5": 659.25,
+    "f5": 698.46,
+    "g5": 783.99,
+    "a5": 880.00,
+    "b5": 987.77,
+
+    "c6": 1046.50,
+    "d6": 1174.66,
+    "e6": 1318.51,
+    "f6": 1396.91,
+    "g6": 1567.98,
+    "a6": 1760.00,
+    "b6": 1975.53,
+  };
+
+  BeatMs;
+  Articulation; //Range [0.0, 1.0]
+  Sheet;
+  ButtonTable;
+  IsPlaying;
+
+  constructor(BeatMs, Articulation, Sheet, ButtonTable) {
+    console.assert(0.0 <= Articulation && Articulation <= 1.0, "Articulation must be in range [0.0, 1.0]")
+    this.IsPlaying = false;
+    this.BeatMs = BeatMs;
+    this.Articulation = Articulation;
+    this.Sheet = Sheet;
+    this.ButtonTable = ButtonTable;
+  }
+}
+
 class gamestate {
   GamePlaying;
   Progress;
-  GuessCounter;
+  GuessCount;
   TimesWon;
   TimesLost;
+  Squid;
+  SquidPrompted;
+  StatusElm;
 
-  Pattern;
   LastButton;
   ButtonCount;
-  TonePlaying;
-  ToneSequencePlaying;
 
   constructor() {
+    this.GamePlaying = false;
+    this.Progress = 1;
+    this.GuessCount = 0;
     this.TimesWon = 0;
     this.TimesLost = 0;
-    this.Pattern = [];
-    this.Button = 0;
-    this.Progress = 0;
-    this.GamePlaying = false;
-    this.TonePlaying = false;
-    this.GuessCounter = 0;
-    this.ToneSequencePlaying = false;
+    this.Squid = false;
+    this.SquidPrompted = false;
+    this.LastButton = 0;
+    this.StatusElm = null;
+  }
+
+  Restart() {
+    this.GamePlaying = true;
+    this.Progress = 1;
+    this.GuessCount = 0;
+    this.TimesLost = 0;
+    this.Squid = false;
+    this.SquidPrompted = false
+    this.LastButton = 0;
   }
 }
 
 class audiosynth {
-  AudioContext;
+  ContextType;
   Context;
   Oscillator;
   Gain;
@@ -48,26 +110,40 @@ class audiosynth {
   }
 }
 
-
-//Tone Sequencing Consts
-const c = 0.2;
-const clueHoldTime = 1000 * c;
-const cluePauseTime = 333 * c;
-const nextClueWaitTime = 1000 * c;
-var freq = [null]; //Index 0 must be null
-
-
 //App Components
 var gGameState = new gamestate();
 var gAudioSynth = new audiosynth();
-
+var GameSequence = new sequence(800.0, 0.8,
+  [
+    ["e4", 1 / 4],
+    ["b3", 1 / 4],
+    ["b4", 1 / 4],
+    ["e4", 1 / 4],
+    ["c5", 1 / 4],
+    ["b4", 1 / 4],
+    ["f4", 1 / 4],
+    ["c5", 1 / 4],
+  ], [null, "b3", "e4", "c5", "c4", "b4", "f4"]);
+var SquidSequence = new sequence((480.0 * 4.0), 0.8,
+  [
+    ["b3", 1 / 8],
+    ["e4", 1 / 8],
+    ["e4", 1 / 4],
+    ["e4", 1 / 8],
+    ["d4", 1 / 4],
+    ["e4", 1 / 8],
+    ["e4", 1 / 8],
+    ["b3", 1 / 8],
+    ["b3", 1 / 8],
+    ["d4", 1 / 8],
+  ], [null, "b3", "e4", "d4"]);
 
 /**************************************************
  *   !!!ENTRYPOINT!!!
  **************************************************/
 function main() {
-  console.log("entering main");
-  GameInitResources(gGameState);
+  console.log("Entering main() ...");
+  GameInit(gGameState);
   OpenglMain();
   gAudioSynth.Start();
   return;
@@ -77,85 +153,15 @@ function main() {
 /**************************************************
  *   HELPERS
  **************************************************/
-function Clamp(value, low, high, margin) {
-  console.assert(low < high, "Clamp function high and a low parameters are in wrong order");
-  return (value < low) ? low + margin : (value > high) ? high - margin : value;
+function Clamp(Value, Low, High, Margin) {
+  console.assert(low < high, " Clamp High & Low parameters in wrong order");
+  return (Value < Low) ? Low + Margin : (Value > High) ? High - Margin : Value;
 }
 
 
 /**************************************************
  *   SQUID STUFF
  **************************************************/
-//Squid Stuff
-var Squid = false;
-const SquidBeat = 480.0 * 4.0 * 1.0; //125BPM * 1/60,000ms
-const SquidPWM = 0.8; //misnomer
-const SquidItvl = { "whole": 1.0, "quarter": 0.25, "eighth": 0.125 };
-const SquidNote = { b: 246.94, d: 293.66, e: 329.63 };
-const SquidSheet =
-  [
-    ["b", "eighth"],
-    ["e", "eighth"],
-    ["e", "quarter"],
-    ["e", "quarter"],
-    ["d", "quarter"],
-    ["e", "eighth"],
-    ["e", "eighth"],
-    ["b", "eighth"],
-    ["b", "eighth"],
-    ["d", "quarter"],
-  ];
-var SquidButtonTable = [null, "b", "e", "d"];
-
-function SquidPrompt() {
-  //var descP = document.getElementById("desc");
-  var result = "yes" == prompt("Would you like to go another round and earn more " +
-    "money than you can spend in your lifetime at the risk " +
-    "of loosing all your hard work up to this moment? " +
-    "type <yes> to accept");
-  return result;
-}
-
-function SquidSequence() {
-  guessCounter = 0;
-  toneSequencePlaying = true;
-  audioCtx.resume()
-  let delay = 0.0;
-  for (let i = 0; i < squidSheet.length; i++) {
-    var note = squidSheet[i][1];
-    var tone = squidSheet[i][0];
-    var hold = squidBeat * squidPWM * squidItvl[note];
-    var release = squidBeat * (1.0 - squidPWM) * squidItvl[note];
-    setTimeout(squidPlayTone, delay, tone, hold);
-    delay += release;
-    delay += hold;
-  }
-  toneSequencePlaying = false;
-}
-
-function SquidButtonfromNote(note) {
-  var result = 0;
-  for (var i = 0; i < squidButtonTable.length; i++) {
-    if (squidButtonTable[i] == note) { result = i; break; }
-  }
-  return result;
-}
-
-function SquidPlayTone(note, duration) {
-  var Button = squidButtonfromNote(note);
-  console.assert(Button > 0, "invalid button number used");
-  lightButton(Button);
-
-  Oscillator.frequency.value = squidNote[note];
-  Gain.gain.setTargetAtTime(volume, audioCtx.currentTime + 0.05, 0.025);
-  audioCtx.resume();
-
-  tonePlaying = true;
-  setTimeout(function () { pregameStopTone(); }, duration);
-
-  setTimeout(clearButton, duration, Button);
-}
-
 function SquidButtonRotate() {
   //Get style from load style sheet
   var Button1 = document.getElementById("Button01");
@@ -210,7 +216,7 @@ function GamePatternGenerator(ButtonCount, TimesWon) {
     //NOTE(): buttonscount is hard coded! wrong!
     var num = Math.floor(Math.random() * 100) % ButtonCount;
     var rnd = Clamp(num, 1, 6, 0.0);
-    console.assert(rnd > 0 && rnd < PatternCount, "Error: pattern generated contains an invalid number");
+    console.assert(rnd > 0 && rnd < PatternCount, " Pattern Generator produced invalid number");
     NewPattern.push(rnd);
   }
 
@@ -218,30 +224,21 @@ function GamePatternGenerator(ButtonCount, TimesWon) {
 }
 
 function GameStartRound(GameState, Audio) {
-  console.assert(GameState != undefined && Audio != undefined, "pass the state you animal");
-  GameState.Progress = 0;
-  GameState.GamePlaying = true;
-  squid = false;
+  console.assert(GameState != undefined && Audio != undefined,
+    " Game or Audio state missing");
+
+  GameDisplayStatus(GameState, "New Round!!!");
+  GameState.Restart();
 
   document.getElementById("startButton").classList.add("hidden");
   document.getElementById("stopButton").classList.remove("hidden");
 
-  SequencePlay(Audio, GameState);
-}
-
-function GameInitResources(GameState) {
-  console.assert(GameState != undefined, "pass the state you animal");
-  //This is called from main after site resources are loaeded.
-  //Range of audible frequencies 20 Hz to 20 kHz.
-  // original frequencies 261.6, 329.6, 392.0, 466.2;
-  var ButtonCount = document.getElementById("gameButtonArea").childElementCount;
-
+  //TODO(): Writer a sheet music generator
+  //GamePatternGenerator(GameState.ButtonCount, GameState.TimesWon);
+  /*
+  
   var BaseFreq = Clamp(200 + (Math.random() * 100.0), 200.0, 300.0, 0.0);
   var FreqSpaceing = 120.0;
-
-  GameState.ButtonCount = ButtonCount;
-  GameState.Pattern = GamePatternGenerator(GameState.ButtonCount, GameState.TimesWon);
-
   //TODO(): use frequencies of actual notes from a file of table or smthing
   for (var i = 1; i <= ButtonCount; i++) {
     var NewFreq = BaseFreq + (FreqSpaceing * i);
@@ -255,21 +252,32 @@ function GameInitResources(GameState) {
     freq[RndIndex] = freq[i];
     freq[i] = Temp;
   }
+  */
+  GameSequence.IsPlaying = false;
+  SequencePlay(GameSequence, Audio, GameState.Progress);
+}
+
+function GameInit(GameState) {
+  console.assert(GameState != undefined, " Game state missing");
+  GameState.ButtonCount = document.getElementById("gameButtonArea").childElementCount;
+  GameState.StatusElm = document.getElementById("gameStatus");
+  //This is called from main after site resources are loaeded.
 
   return;
 }
 
 function GameEnd(GameState) {
   console.assert(GameState != undefined, "pass the state you animal");
-  Squid = false;
-  GameState.GamePlaying = false;
-
-  SquidButtonTable[1] = "b";
-  SquidButtonTable[2] = "e";
-  SquidButtonTable[3] = "d";
-
+  
   document.getElementById("startButton").classList.remove("hidden");
   document.getElementById("stopButton").classList.add("hidden");
+
+  GameState.Squid = false;
+  GameState.GamePlaying = false;
+
+  SquidSequence.ButtonTable[1] = "b";
+  SquidSequence.ButtonTable[2] = "e";
+  SquidSequence.ButtonTable[3] = "d";
   var Button1 = document.getElementById("Button01");
   var Button2 = document.getElementById("Button02");
   var Button3 = document.getElementById("Button03");
@@ -279,92 +287,196 @@ function GameEnd(GameState) {
   return;
 }
 
-function GameDisplayResult(Win) {
-  if (Win == true && squid == false) {
-    alert("Game Over. You Won!.");
-    let Div = document.createElement("div");
-    let Para = document.createElement("p");
-    Div.append(Para);
+function GamePromptYesNo(GameState, Question) {
+  //very squid specific function...
+  console.assert(GameState.StatusElm != undefined, "There is no handle to StatusElm");
+  GameDisplayStatus(GameState, Question);
+  var YesButton = document.createElement("button");
+  var NoButton = document.createElement("button");
+  YesButton.setAttribute("id", "SYB");
+  NoButton.setAttribute("id", "SNB");
+  YesButton.innerHTML = "Accept";
+  NoButton.innerHTML = "Decline";
+  YesButton.onclick = function () {
+    gGameState.Squid = true;
+    GameUpdate(gGameState, gAudioSynth, 0);
+    gGameState.SquidPrompted = false;
+    gGameState.StatusElm.removeChild(document.getElementById("SYB"));
+    gGameState.StatusElm.removeChild(document.getElementById("SNB"));
+    gGameState.StatusElm.classList.add("hidden");
+    GameDisplayStatus(gGameState, "");
+  };
+  NoButton.onclick = function () {
+    gGameState.Squid = false;
+    GameUpdate(gGameState, gAudioSynth, 0); 
+    gGameState.SquidPrompted = false;
+    gGameState.StatusElm.removeChild(document.getElementById("SYB"));
+    gGameState.StatusElm.removeChild(document.getElementById("SNB"));
+    gGameState.StatusElm.classList.add("hidden");
+    GameDisplayStatus(gGameState, "");
   }
-  else if (win == true && squid == true) {
-    alert("you win the monies!");
+  GameState.StatusElm.appendChild(YesButton);
+  GameState.StatusElm.appendChild(NoButton);
+  return;
+}
+
+function GameDisplayResult(GameState, Win) {
+  if (Win == true && GameState.Squid == false) {
+    GameDisplayTempStatus(GameState, 6000, "Game Over. You Won!.");
+  }
+  else if (Win == true && GameState.Squid == true) {
+    GameDisplayTempStatus(GameState, 6000, "you win the monies!");
   }
   else {
-    alert("Game Over. You lost.");
+    GameDisplayTempStatus(GameState, 6000, "Game Over. You lost.");
+  }
+}
+
+function GameDisplayStatus(GameState, Status) {
+  var StatusElm = GameState.StatusElm;
+  console.assert(GameState.StatusElm != undefined,
+    "There is no handle to StatusElm");
+
+  if (Status == undefined) {
+    StatusElm.classList.add("hidden");
+    return;
+  }
+  var Para;
+  if (StatusElm.childElementCount == 0) {
+    Para = document.createElement("h1");
+    StatusElm.appendChild(Para);
+  }
+  else {
+    Para = StatusElm.firstChild;
   }
 
-  GameEnd();
+  Para.innerHTML = Status;
+
+  StatusElm.classList.remove("hidden");
+  return;
+}
+
+function GameDisplayTempStatus(GameState, HoldMs, Status) {
+  var StatusElm = GameState.StatusElm;
+  console.assert(GameState.StatusElm != undefined,
+    "There is no handle to StatusElm");
+
+  //document.getElementById("startButton").classList.add("hidden");
+  var Para;
+  if (StatusElm.childElementCount == 0) {
+    Para = document.createElement("h1");
+    StatusElm.appendChild(Para);
+  }
+  else {
+    Para = StatusElm.firstChild;
+  }
+
+  var OldStatus = Para.innerHTML;
+  Para.innerHTML = Status;
+
+  setTimeout(GameDisplayStatus, HoldMs, GameState, OldStatus);
+
 }
 
 function GameUpdate(GameState, Audio, Button) {
-  console.assert(GameState != undefined && Audio != undefined, "pass the state you animal");
-
+  console.assert(GameState != undefined && Audio != undefined, " Game or Audio state missing");
   console.assert(Button > 0, "invalid button number used");
   if (!GameState.GamePlaying) {
     return;
   }
-
+  
+  var Sequence = GameState.Squid?SquidSequence:GameSequence;
   //TODO():Disable buttons on squence play
-  if (GameState.ToneSequencePlaying == true) {
-    alert("listen to the tone");
+  if (Sequence.IsPlaying == true) {
+    GameDisplayTempStatus(GameState, 1200,
+      "Wait... Listen to the clues!");
     return;
   }
-
-  const win = true;
-  if (GameIsGuessCorrect(GameState, Button, GameState.GuessCounter, squid)) {
-    if (GameIsRoundOver(GameState, squid, GameState.GuessCounter)) {
-      if (squid) {
-        GameResult(win);
-        GameState.TimesWon++;
+  var Win;
+  if (GameIsGuessCorrect(GameState, Sequence, Button)) {
+    if (GameIsRoundOver(GameState, Sequence, GameState.Progress)) {
+      if (GameState.Progress == Sequence.Sheet.length - 1) {
+        Win = true;
       }
-      else if (GameState.Progress == GameState.Pattern.length - 1) {
-        if (!squid) {
-          squid = SquidPrompt();
-          if (squid) {
-            SquidSequence();
-          }
-          else {
-            GameResult(win);
-            GameState.timesWon++;
-          }
+      else {
+        GameState.Progress++;
+        GameState.GuessCount = 0;
+        if (GameState.GamePlaying == true) {
+          SequencePlay(Sequence, Audio, GameState.Progress);
         }
-      } else {
-        GameState.progress++;
-
-        SequencePlay(Audio, GameState);
-
       }
     } else {
-      gGameState.guessCounter++;
-      if (squid) {
+      GameState.GuessCount++;
+      setInterval(function ()
+      {
+        
+      }, 1000);
+      if (GameState.Squid) {
         SquidButtonRotate();
       }
     }
   } else {
-    if (gGameState.timesLost < 3) {
-      GameResult(!win);
+    if (GameState.TimesLost == 3) {
+      Win = false;
+      GameDisplayResult(GameState, Win);
+      GameEnd(GameState);
     }
     else {
-      gGameState.timesLost++;
+      GameState.GuessCount = 0;
+      GameState.TimesLost++;
+      GameDisplayStatus(GameState,
+        "Try it again! You still have " +
+        (3 - GameState.TimesLost) +
+        " more tries!!!");
     }
   }
+  if(Win)
+  {
+    if(!GameState.Squid && GameState.SquidPrompted == false) {
+      GamePromptYesNo(GameState,
+      "Would you like to go another round and earn more " +
+      "money than you can spend in your lifetime at the risk " +
+      "of loosing all your hard work up to this moment? " +
+      "type to accept");
 
+    GameState.SquidPrompted = true;
+    return;
+    }
+    if (GameState.Squid) {
+      GameDisplayStatus(GameState, "Squid Game");
+      SequencePlay(Sequence, Audio, GameState);
+    }
+    else {
+      GameDisplayResult(GameState, Win);
+      GameEnd(GameState);
+      GameState.TimesWon++;
+    }
+  }
 }
 
-function GameIsGuessCorrect(GameState, Button, GuessCount, Squid) {
-  console.assert(Button > 0, "invalid button number used");
-  var ButtonTone = SquidButtonTable[Button];
-  var SquidTone = SquidSheet[GuessCount][0];
-  var ExpectedButton = GameState.Pattern[GuessCount];
+function GameIsGuessCorrect(GameState, Sequence, Button) {
+  var GuessCount = GameState.GuessCount;
+  console.assert(0 < Button && Button < GameState.ButtonCount,
+    " Invalid button number. Must be greater than 0 & less than button count");
+  var ButtonPitch = Sequence.ButtonTable[Button];
+  var SheetPitch = Sequence.Sheet[GuessCount][0];
 
-  var Result = Squid ? SquidTone == ButtonTone : ExpectedButton == Button;
+  var Result = ButtonPitch == SheetPitch;
   return Result;
 }
 
-function GameIsRoundOver(GameState, Squid, GuessCounter) {
-  var Result = Squid ?
-    GuessCounter == (SquidSheet.length - 1) :
-    GuessCounter == GameState.Progress;
+function GameIsRoundOver(GameState, Sequence, EndCount) {
+  var GuessCount = GameState.GuessCount;
+  var Result = 0;
+
+  if (EndCount == undefined) {
+    Result = GuessCount == (Sequence.Sheet.length - 1)
+  }
+  else {
+    console.assert(EndCount < Sequence.Sheet.length,
+      "Guess count out of bounds");
+    Result = GuessCount == (EndCount - 1);
+  }
 
   return Result;
 }
@@ -374,14 +486,13 @@ function GameIsRoundOver(GameState, Squid, GuessCounter) {
 /**************************************************
  *   STYLING CONTROL
  **************************************************/
+//NOTE(): calling funcitons should validate button
 function LightButton(Button) {
-  console.assert(Button > 0, "invalid button number used");
   document.getElementById("Button0" + Button).classList.add("lit");
   return
 }
 
 function ClearButton(Button) {
-  console.assert(Button > 0, "invalid button number used");
   document.getElementById("Button0" + Button).classList.remove("lit");
   return;
 }
@@ -391,28 +502,31 @@ function ClearButton(Button) {
  *   HTML - JS INTERFACE
  **************************************************/
 function SoundButtonClickHandler(Button) {
-  GameUpdate(gGameState, gAudioSynth, Button)
+  GameUpdate(gGameState, gAudioSynth, Button);
   return;
 }
 
 function SoundButtonPressHandler(Button) {
-  console.assert(Button > 0, "invalid button number used");
-
   var GameState = gGameState;
-  var ButtonTone = SquidButtonTable[Button];
-  var Freq = Squid ? SquidNote[ButtonTone] : freq[Button];
+  console.assert(0 < Button && Button <= GameState.ButtonCount,
+    " Invalid button number. Must be greater than 0 & less than button count");
+  GameState.LastButton = Button;
 
-  if (!GameState.TonePlaying) {
+  var Sequence = GameState.Squid ? SquidSequence : GameSequence;
+  if (!Sequence.IsPlaying) {
+    var Pitch = Sequence.ButtonTable[Button];
+
+    var Freq = sequence.PitchToFreqTable[Pitch];
+    console.assert(Freq != undefined,
+      " Invalid lookup into PitchToFreqTable[]");
     AudioPlayTone(gAudioSynth, Freq);
-    GameState.TonePlaying = true;
   }
 
-  GameState.button = Button;
   return;
 }
 
-function SoundButtonReleaseHandler(Button) {
-  AudioPauseTone(gAudioSynth, gGameState);
+function SoundButtonReleaseHandler() {
+  AudioPauseTone(gAudioSynth);
   return;
 }
 
@@ -440,8 +554,12 @@ function AudioPlayTone(Audio, Freq) {
   return;
 }
 
-function AudioPauseTone(Audio) {
+function AudioPauseTone(Audio, Callback) {
   Audio.Gain.gain.setTargetAtTime(0, Audio.Context.currentTime + 0.05, 0.025);
+  if (Callback != undefined) {
+    Callback(arguments[2], arguments[3], arguments[4]);
+  }
+  return;
 }
 
 
@@ -449,43 +567,74 @@ function AudioPauseTone(Audio) {
 /**************************************************
  *   SEQUENCING
  **************************************************/
-function SequenceBegin(Audio, Button, GamePlaying, HoldTime) {
-  var Freq = freq[Button];
-  if (GamePlaying) {
-    LightButton(Button);
-    SequencePlayTone(Audio, Freq, HoldTime);
-    setTimeout(ClearButton, HoldTime, Button);
-  }
-}
-function SequencePlayTone(Audio, Freq, Duration) {
-  console.assert(Audio != undefined, "pass the state you animal");
+//Pitch: is a letter coressponding to a frequency
+//Duration: is a ratio of time that can be used to calc the time(ms) that a pitch is held
+function SequenceBegin(Sequence, Audio, Index, NoteCount, Pitch, HoldMs, Button) {
+  console.assert(Audio != undefined, "Pass Audio state");
+
+  var Freq = sequence.PitchToFreqTable[Pitch];
+  LightButton(Button);
+
   Audio.Oscillator.frequency.value = Freq;
   Audio.Gain.gain.setTargetAtTime(Audio.Volume, Audio.Context.currentTime + 0.05, 0.025);
   Audio.Context.resume();
 
-  setTimeout(AudioPauseTone, Duration, Audio);
+  setTimeout(AudioPauseTone, HoldMs,
+    Audio,
+    NotifySequenceEnd,
+    Sequence,
+    Index,
+    NoteCount);
+  setTimeout(ClearButton, HoldMs, Button);
+  return;
 }
 
-function SequencePlay(Audio, GameState) {
-  console.assert(GameState != undefined && Audio != undefined, "pass the state you animal");
-  GameState.guessCounter = 0;
-  GameState.toneSequencePlaying = true;
-  Audio.Context.resume()
-
-  var Delay = nextClueWaitTime;
-  for (let i = 0; i <= GameState.Progress; i++) {
-    setTimeout(SequenceBegin, Delay, Audio,
-      GameState.Pattern[i],
-      GameState.GamePlaying,
-      clueHoldTime);
-
-    Delay += clueHoldTime;
-    Delay += cluePauseTime;
+function NotifySequenceEnd(Sequence, Index, NoteCount) {
+  if (Index == (NoteCount - 1)) {
+    Sequence.IsPlaying = false;
   }
 
-  GameState.ToneSequencePlaying = false;
+  return;
 }
 
+function SequencePlay(Sequence, Audio, NoteCount) {
+  console.assert(Audio != undefined, "Audio state missing");
+
+  Audio.Context.resume()
+
+  var Delay = 500.0; //Padding in Ms Between Sequence & Last Guess
+  for (let Index = 0; Index < NoteCount; Index++) {
+    var Pitch = Sequence.Sheet[Index][0];
+    var Duration = Sequence.Sheet[Index][1];
+    var HoldMs = Sequence.BeatMs * Duration * Sequence.Articulation;
+    var ReleaseMs = Sequence.BeatMs * Duration * (1.0 - Sequence.Articulation);
+    var Button = SequenceButtonFromPitch(Sequence, Pitch);
+
+    setTimeout(SequenceBegin, Delay,
+      Sequence,
+      Audio,
+      Index,
+      NoteCount,
+      Pitch,
+      HoldMs,
+      Button);
+
+    Delay += ReleaseMs;
+    Delay += HoldMs;
+  }
+  Sequence.IsPlaying = true;
+  return;
+}
+
+function SequenceButtonFromPitch(Sequence, Pitch) {
+  console.assert(Sequence != undefined,
+    " Sequence missing");
+  var Result = 0;
+  for (var i = 0; i < Sequence.ButtonTable.length; i++) {
+    if (Sequence.ButtonTable[i] == Pitch) { Result = i; break; }
+  }
+  return Result;
+}
 
 
 /**************************************************
@@ -584,17 +733,33 @@ function OpenglMain() {
         return mat2(1.0,   X,
                     Y  , 1.0);
     }
+
+    float Triangle(vec2 uv)
+    {
+      uv.y += 0.2;
+      vec2 normal = vec2(0.0);
+      uv *= 1.5;
+      uv.x = abs(uv.x);
+      uv.x -= 0.5;
+      normal = GetNormal(13.0*PI32/6.0);
+      uv -= normal * max(0.0, dot(uv, normal)) * 2.0;
+      
+      float line = length(uv - vec2(clamp(uv.x, -1.3, 1.0), 0.0));
+      line = min(1.0, line); //NOTE(): Original line
+
+      return smoothstep(0.01, 0.0099, 0.15*line);
+    }
     void main()
     {
       //TODO(): Clean all of this stuff up...
       vec2 uv  = (gl_FragCoord.xy-0.5*u_resolution.xy)/u_resolution.y;
-      vec3 col = vec3(0.8, 0.5, 0.5);
+      vec3 Color = vec3(0.8, 0.5, 0.5);
   
       if(false) {}
-      else if(u_button == 1) { col = vec3(0.3, 0.5, 0.3); }
-      else if(u_button == 2) { col = vec3(0.3, 0.4, 0.5); }
-      else if(u_button == 3) { col = vec3(1.0, 0.8, 0.0); }
-      else if(u_button == 4) { col = vec3(1.0, 0.0, 0.0); }
+      else if(u_button == 1) { Color = vec3(0.3, 0.5, 0.3); }
+      else if(u_button == 2) { Color = vec3(0.3, 0.4, 0.5); }
+      else if(u_button == 3) { Color = vec3(1.0, 0.8, 0.0); }
+      else if(u_button == 4) { Color = vec3(1.0, 0.0, 0.0); }
 
       if(u_squid == 0)
       {
@@ -607,7 +772,7 @@ function OpenglMain() {
         //TODO(): Understand why Shear(sin(t),0.0) makes the seem like its
         //        translating the uv space.
         ///uv *= 1.0/length(uv*uv*uv);
-        //uv *= Shear(0.0, 0.0);
+        uv *= Shear(0.0, 0.0);
         vec2 gv = fract(uv)-0.5;
         vec2 CellId = floor(uv);
         
@@ -623,42 +788,28 @@ function OpenglMain() {
         float Mask = smoothstep(0.01, -0.01, abs(Dist) - Width);
         
         //TODO(): Keep the pattern as is but make a clear seperation betweeen
-        //        the grid colors and the truchet line. less jank
-        //col.r = Grid(gv);
-        col -= Hash(CellId);
-        col.gb += Hash(-CellId) + Mask * 0.003;
-        col += Mask;
+        //        the grid Colorors and the truchet line. less jank
+        //Color.r = Grid(gv);
+        Color -= Hash(CellId);
+        Color.gb += Hash(-CellId) + Mask * 0.003;
+        Color += Mask;
 
-        col-= 0.6;
+        Color-= 0.6;
       }
       else
       {    
-        col -= 0.3;
+        Color -= 0.3;
         
-        uv.y += 0.2;
-        vec2 normal = vec2(0.0);
-        uv *= 1.5;
-        uv.x = abs(uv.x);
-        uv.x -= 0.5;
-        //2.0*PI32/3.0
-        normal = GetNormal(13.0*PI32/6.0);
-        
-        uv -= normal * max(0.0, dot(uv, normal)) * 2.0;
-        
-
-        float line = length(uv - vec2(clamp(uv.x, -1.3, 1.0), 0.0));
-        line = min(1.0, line); //NOTE(): Original line
-        col += 10.0 * smoothstep(0.01, 0.0099, 0.15*line);
+        Color += Triangle(uv);
         vec3 grid = vec3(0.1);
-        //grid.rg -= smoothstep(1.0, 0.8, 1.0 - fract(uv * 10.0) + 0.01);
-        col += grid;
+        Color += grid;
+
+        //grid.rg -= smoothstep(0.0, 0.00001, 1.0 - fract(uv * 0.00001));
       }
       
-      gl_FragColor=vec4(col, 1.0);
+      gl_FragColor=vec4(Color, 1.0);
     }
     `;
-
-  console.log(vertexShaderSource);
 
   var vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
   var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
@@ -723,8 +874,8 @@ function OpenglMain() {
     gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
 
     gl.uniform1f(UIdTime, now);
-    gl.uniform1i(UIdSquid, gGameState.squid);
-    gl.uniform1i(UIdButton, gGameState.button);
+    gl.uniform1i(UIdSquid, gGameState.Squid);
+    gl.uniform1i(UIdButton, gGameState.LastButton);
     gl.uniform2fv(UIdResolution, new Float32Array(resolution));
     var primitiveType = gl.TRIANGLES;
     var offset = 0;

@@ -5,25 +5,42 @@
 
 body {
   background-color: rgb(0, 0, 0);
-  color: white;
   font-family: helvetica, arial, sans-serif;
 }
 
 h1 {
-  padding-top: 40px;
+  color: #ffffff;
   font-family: verdana, arial, sans-serif;
+  -webkit-text-stroke-width: 1.5px;
+  -webkit-text-stroke-color: black;
 }
 
 button {
   padding: 10px;
   border-radius: 10px;
+  border: 2px solid #3a443a;
 }
 
 .container {
-  opacity: 100%;
+  padding-top: 40px;
   margin: auto;
   width: 400px;
 }
+
+.title {
+  background-color: rgba(255, 255, 255, 0.6);
+  border: 2px solid #000000;
+  padding-left: 10px;
+  padding-top: 10px;
+  margin-bottom: 10px;
+}
+
+.title > h1
+{
+  color: #000000;
+  padding-bottom: 0px;
+}
+
 
 .content {
 }
@@ -35,26 +52,30 @@ button {
   opacity: 70%;
   width: 100%;
   height: 100%;
+  position: fixed;
   z-index: -1;
 }
 
+#gameStatus {
+  margin: 0px;
+  padding: 0px;
+}
+
 #gameButtonArea {
-  margin-top: 20px;
+  margin-top: 5px;
   display: flex;
   align-content: space-between;
   justify-content: space-between;
   flex-wrap: wrap;
-  row-gap: 10px;
-  column-gap: 0px;
-  width: 400px;
-  height: 400px;
+  row-gap: 6px;
 }
 
 #gameButtonArea > button {
   align-self: center;
   flex-basis: auto;
-  width: 49%;
-  height: 49%;
+  width: 130px;
+  height: 130px;
+  border: 2px solid #3a443a;
 }
 
 #Button01 {
