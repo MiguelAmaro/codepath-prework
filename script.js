@@ -1,6 +1,7 @@
 class sequence {
   //no sharps/flats
   static PitchToFreqTable = {
+    "null": 0.0,
     "c3": 130.81,
     "d3": 146.83,
     "e3": 164.81,
@@ -38,20 +39,24 @@ class sequence {
   Articulation; //Range [0.0, 1.0]
   Sheet;
   ButtonTable;
+  OldButtonTable;
   IsPlaying;
 
   constructor(BeatMs, Articulation, Sheet, ButtonTable) {
-    console.assert(0.0 <= Articulation && Articulation <= 1.0, "Articulation must be in range [0.0, 1.0]")
+    console.assert(0.0 <= Articulation && Articulation <= 1.0, "Articulation must be in range [0.0, 1.0]");
     this.IsPlaying = false;
     this.BeatMs = BeatMs;
     this.Articulation = Articulation;
     this.Sheet = Sheet;
     this.ButtonTable = ButtonTable;
+    this.OldButtonTable = ButtonTable;
   }
 }
 
+const PROGRESS_START_INDEX = 1;
 class gamestate {
   GamePlaying;
+  GameWon;
   Progress;
   GuessCount;
   TimesWon;
@@ -61,10 +66,12 @@ class gamestate {
   StatusElm;
 
   LastButton;
+  LastButtonColor;
   ButtonCount;
 
   constructor() {
     this.GamePlaying = false;
+    this.GameWon = false;
     this.Progress = 1;
     this.GuessCount = 0;
     this.TimesWon = 0;
@@ -73,16 +80,6 @@ class gamestate {
     this.SquidPrompted = false;
     this.LastButton = 0;
     this.StatusElm = null;
-  }
-
-  Restart() {
-    this.GamePlaying = true;
-    this.Progress = 1;
-    this.GuessCount = 0;
-    this.TimesLost = 0;
-    this.Squid = false;
-    this.SquidPrompted = false
-    this.LastButton = 0;
   }
 }
 
@@ -117,26 +114,20 @@ var GameSequence = new sequence(800.0, 0.8,
   [
     ["e4", 1 / 4],
     ["b3", 1 / 4],
-    ["b4", 1 / 4],
-    ["e4", 1 / 4],
-    ["c5", 1 / 4],
-    ["b4", 1 / 4],
-    ["f4", 1 / 4],
-    ["c5", 1 / 4],
   ], [null, "b3", "e4", "c5", "c4", "b4", "f4"]);
 var SquidSequence = new sequence((480.0 * 4.0), 0.8,
   [
     ["b3", 1 / 8],
     ["e4", 1 / 8],
     ["e4", 1 / 4],
-    ["e4", 1 / 8],
+    ["e4", 1 / 4],
     ["d4", 1 / 4],
     ["e4", 1 / 8],
     ["e4", 1 / 8],
     ["b3", 1 / 8],
     ["b3", 1 / 8],
     ["d4", 1 / 8],
-  ], [null, "b3", "e4", "d4"]);
+  ], [null, "b3", "e4", "d4", "null", "null", "null"]);
 
 /**************************************************
  *   !!!ENTRYPOINT!!!
@@ -158,50 +149,23 @@ function Clamp(Value, Low, High, Margin) {
   return (Value < Low) ? Low + Margin : (Value > High) ? High - Margin : Value;
 }
 
+function GetButtonColorString(Button) {
+  var Result;
+  var Button = document.getElementById("Button0" + Button);
+  var ButtonStyle = window.getComputedStyle(Button);
+  Result = ButtonStyle.getPropertyValue("background");
+  return Result;
+}
 
-/**************************************************
- *   SQUID STUFF
- **************************************************/
-function SquidButtonRotate() {
-  //Get style from load style sheet
-  var Button1 = document.getElementById("Button01");
-  var Button2 = document.getElementById("Button02");
-  var Button3 = document.getElementById("Button03");
-  var Button1Style = window.getComputedStyle(Button1);
-  var Button2Style = window.getComputedStyle(Button2);
-  var Button3Style = window.getComputedStyle(Button3);
-  var Button1Color = Button1Style.getPropertyValue("background");
-  var Button2Color = Button2Style.getPropertyValue("background");
-  var Button3Color = Button3Style.getPropertyValue("background");
-
-  var rnd = Math.floor(Math.random() * 1000) % 3;
-  //TODO(): add support for arbitrary number of a button swaps.
-  switch (rnd) {
-    case 0:
-      {
-        Button1.style.background = Button2Color;
-        Button2.style.background = Button1Color;
-        var tmp = squidButtonTable[1];
-        squidButtonTable[1] = squidButtonTable[2];
-        squidButtonTable[2] = tmp;
-      } break;
-    case 1:
-      {
-        Button2.style.background = Button3Color;
-        Button3.style.background = Button2Color;
-        var tmp = squidButtonTable[2];
-        squidButtonTable[2] = squidButtonTable[3];
-        squidButtonTable[3] = tmp;
-      } break;
-    case 2:
-      {
-        Button1.style.background = Button3Color;
-        Button3.style.background = Button1Color;
-        var tmp = squidButtonTable[1];
-        squidButtonTable[1] = squidButtonTable[3];
-        squidButtonTable[3] = tmp;
-      } break;
-  }
+function GetButtonColorAsFloat3(Button) {
+  var Result;
+  var RegExtactRGB8 = new RegExp("[a-z]|[(]|[)]|[0-9]+[%]|[ ]", "g");
+  var ButtonColor = GetButtonColorString(Button);
+  var ColorRGB8 = ButtonColor.replace(RegExtactRGB8, "").split(",");
+  Result = new Array(ColorRGB8[0] / 255.0,
+    ColorRGB8[1] / 255.0,
+    ColorRGB8[2] / 255.0);
+  return Result;
 }
 
 /**************************************************
@@ -227,34 +191,46 @@ function GameStartRound(GameState, Audio) {
   console.assert(GameState != undefined && Audio != undefined,
     " Game or Audio state missing");
 
-  GameDisplayStatus(GameState, "New Round!!!");
-  GameState.Restart();
+  //NOTE(): Should button generation be dependent on a sequence length?
+  //        Sequeence can genereate an arbitrary set of notes which need
+  //        their respective buttons. Also squid round only requires 3 buttons.
+  //        sequences have all the data to create and remove buttons easily...
+  //
+  if (GameState.Squid) {
+    GameDisplayStatus(GameState, "Squid Round!!!");
+    GameState.GamePlaying = true;
+    GameState.GameWon = false;
+    GameState.Progress = SquidSequence.Sheet.length;
+    GameState.GuessCount = 0;
+    //GameState.TimesLost = 0;
+    //GameState.SquidPrompted = false
+    GameState.LastButton = 0;
 
-  document.getElementById("startButton").classList.add("hidden");
-  document.getElementById("stopButton").classList.remove("hidden");
+    document.getElementById("startButton").classList.add("hidden");
+    document.getElementById("stopButton").classList.remove("hidden");
 
-  //TODO(): Writer a sheet music generator
-  //GamePatternGenerator(GameState.ButtonCount, GameState.TimesWon);
-  /*
-  
-  var BaseFreq = Clamp(200 + (Math.random() * 100.0), 200.0, 300.0, 0.0);
-  var FreqSpaceing = 120.0;
-  //TODO(): use frequencies of actual notes from a file of table or smthing
-  for (var i = 1; i <= ButtonCount; i++) {
-    var NewFreq = BaseFreq + (FreqSpaceing * i);
-    freq[i] = NewFreq;
+    GameSequence.IsPlaying = false;
+    SequencePlay(SquidSequence, Audio, GameState.Progress);
+  }
+  else {
+    GameDisplayStatus(GameState, "New Round!!!");
+    GameState.GamePlaying = true;
+    GameState.GameWon = false;
+    GameState.Progress = PROGRESS_START_INDEX;
+    GameState.GuessCount = 0;
+    GameState.TimesLost = 0;
+    GameState.Squid = false;
+    GameState.SquidPrompted = false
+    GameState.LastButton = 0;
+
+    document.getElementById("startButton").classList.add("hidden");
+    document.getElementById("stopButton").classList.remove("hidden");
+
+    GameSequence.IsPlaying = false;
+    SequencePlay(GameSequence, Audio, GameState.Progress);
   }
 
-  for (var i = 1; i <= ButtonCount; i++) {
-    //random freq swapping
-    var RndIndex = Clamp(Math.floor(Math.random() * 1000.0) % ButtonCount, 1, ButtonCount - 1, 0.0);
-    var Temp = freq[RndIndex];
-    freq[RndIndex] = freq[i];
-    freq[i] = Temp;
-  }
-  */
-  GameSequence.IsPlaying = false;
-  SequencePlay(GameSequence, Audio, GameState.Progress);
+  return;
 }
 
 function GameInit(GameState) {
@@ -267,17 +243,16 @@ function GameInit(GameState) {
 }
 
 function GameEnd(GameState) {
-  console.assert(GameState != undefined, "pass the state you animal");
-  
+
+
   document.getElementById("startButton").classList.remove("hidden");
   document.getElementById("stopButton").classList.add("hidden");
 
   GameState.Squid = false;
   GameState.GamePlaying = false;
 
-  SquidSequence.ButtonTable[1] = "b";
-  SquidSequence.ButtonTable[2] = "e";
-  SquidSequence.ButtonTable[3] = "d";
+  //TODO(): Make this generic!!!
+  SquidSequence.ButtonTable = SquidSequence.OldButtonTable;
   var Button1 = document.getElementById("Button01");
   var Button2 = document.getElementById("Button02");
   var Button3 = document.getElementById("Button03");
@@ -308,7 +283,7 @@ function GamePromptYesNo(GameState, Question) {
   };
   NoButton.onclick = function () {
     gGameState.Squid = false;
-    GameUpdate(gGameState, gAudioSynth, 0); 
+    GameUpdate(gGameState, gAudioSynth, 0);
     gGameState.SquidPrompted = false;
     gGameState.StatusElm.removeChild(document.getElementById("SYB"));
     gGameState.StatusElm.removeChild(document.getElementById("SNB"));
@@ -320,11 +295,11 @@ function GamePromptYesNo(GameState, Question) {
   return;
 }
 
-function GameDisplayResult(GameState, Win) {
-  if (Win == true && GameState.Squid == false) {
+function GameDisplayResult(GameState) {
+  if (GameState.GameWon && !GameState.Squid) {
     GameDisplayTempStatus(GameState, 6000, "Game Over. You Won!.");
   }
-  else if (Win == true && GameState.Squid == true) {
+  else if (GameState.GameWon && GameState.Squid) {
     GameDisplayTempStatus(GameState, 6000, "you win the monies!");
   }
   else {
@@ -380,78 +355,83 @@ function GameDisplayTempStatus(GameState, HoldMs, Status) {
 
 function GameUpdate(GameState, Audio, Button) {
   console.assert(GameState != undefined && Audio != undefined, " Game or Audio state missing");
-  console.assert(Button > 0, "invalid button number used");
-  if (!GameState.GamePlaying) {
-    return;
-  }
-  
-  var Sequence = GameState.Squid?SquidSequence:GameSequence;
-  //TODO():Disable buttons on squence play
-  if (Sequence.IsPlaying == true) {
+  var Sequence = GameState.Squid ? SquidSequence : GameSequence;
+
+  if (Sequence.IsPlaying) {
     GameDisplayTempStatus(GameState, 1200,
       "Wait... Listen to the clues!");
     return;
   }
-  var Win;
-  if (GameIsGuessCorrect(GameState, Sequence, Button)) {
-    if (GameIsRoundOver(GameState, Sequence, GameState.Progress)) {
-      if (GameState.Progress == Sequence.Sheet.length - 1) {
-        Win = true;
-      }
-      else {
-        GameState.Progress++;
-        GameState.GuessCount = 0;
-        if (GameState.GamePlaying == true) {
+
+  if (GameState.GamePlaying) {
+    if (GameIsGuessCorrect(GameState, Sequence, Button)) {
+      if (GameIsRoundOver(GameState, Sequence, GameState.Progress)) {
+        if (GameIsFinish(GameState, Sequence)) {
+          if(GameState.Squid)
+          {
+            GameState.SquidWon = true;
+          }
+          else
+          {
+            GameState.GameWon = true;
+            GameState.TimesWon++;
+          }
+          GameState.GamePlaying = false;
+        }
+        else {
+          GameState.Progress++;
+          GameState.GuessCount = 0;
+          //NOTE(): careful with squid length
           SequencePlay(Sequence, Audio, GameState.Progress);
+        }
+      } else {
+        GameState.GuessCount++;
+        if (GameState.Squid) {
+          SequenceButtonRotate(SquidSequence);
         }
       }
     } else {
-      GameState.GuessCount++;
-      setInterval(function ()
-      {
-        
-      }, 1000);
-      if (GameState.Squid) {
-        SquidButtonRotate();
+      if (GameState.TimesLost == 3) {
+        GameState.GameWon = false;
+        GameState.GamePlaying = false;
+        GameDisplayResult(GameState);
+        GameEnd(GameState);
+      }
+      else {
+        GameState.GuessCount = 0;
+        GameState.TimesLost++;
+        GameDisplayStatus(GameState,
+          "Try it again from the begining! " +
+          "You still have " +
+          (3 - GameState.TimesLost) +
+          " more tries!!!");
       }
     }
-  } else {
-    if (GameState.TimesLost == 3) {
-      Win = false;
-      GameDisplayResult(GameState, Win);
-      GameEnd(GameState);
-    }
-    else {
-      GameState.GuessCount = 0;
-      GameState.TimesLost++;
-      GameDisplayStatus(GameState,
-        "Try it again! You still have " +
-        (3 - GameState.TimesLost) +
-        " more tries!!!");
-    }
   }
-  if(Win)
-  {
-    if(!GameState.Squid && GameState.SquidPrompted == false) {
+  if (!GameState.GamePlaying) {
+    if (GameState.GameWon &&
+      !GameState.Squid &&
+      !GameState.SquidPrompted) {
       GamePromptYesNo(GameState,
-      "Would you like to go another round and earn more " +
-      "money than you can spend in your lifetime at the risk " +
-      "of loosing all your hard work up to this moment? " +
-      "type to accept");
+        "Would you like to win all the moniesss but " +
+        "suffer a horrible fate if you loose? ");
 
-    GameState.SquidPrompted = true;
-    return;
+      //NOTE(): will this always be set to true before the user replies?
+      GameState.SquidPrompted = true;
+      return;
     }
-    if (GameState.Squid) {
-      GameDisplayStatus(GameState, "Squid Game");
-      SequencePlay(Sequence, Audio, GameState);
+    //NOTE(): start squid round or end game
+    if (GameState.GameWon && GameState.Squid) {
+      GameStartRound(GameState, Audio);
     }
     else {
-      GameDisplayResult(GameState, Win);
+      GameDisplayResult(GameState);
       GameEnd(GameState);
       GameState.TimesWon++;
     }
+
   }
+  return;
 }
 
 function GameIsGuessCorrect(GameState, Sequence, Button) {
@@ -473,14 +453,23 @@ function GameIsRoundOver(GameState, Sequence, EndCount) {
     Result = GuessCount == (Sequence.Sheet.length - 1)
   }
   else {
-    console.assert(EndCount < Sequence.Sheet.length,
+    //NOTE: EndCount is typically Gamestate.Progress which starts
+    //      at 1 therefore will be equal to sheet length for last
+    //      tone.
+    console.assert(EndCount <= Sequence.Sheet.length,
       "Guess count out of bounds");
-    Result = GuessCount == (EndCount - 1);
+    Result = !(GuessCount < (EndCount - 1));
   }
 
   return Result;
 }
 
+function GameIsFinish(GameState, Sequence) {
+  //NOTE(): GameStaet.Progress starts at 1 so (sheet.len-1) 
+  //        will exlude last tone of the sequence.
+  var Result = GameState.Progress == Sequence.Sheet.length;
+  return Result;
+}
 
 
 /**************************************************
@@ -502,18 +491,24 @@ function ClearButton(Button) {
  *   HTML - JS INTERFACE
  **************************************************/
 function SoundButtonClickHandler(Button) {
-  GameUpdate(gGameState, gAudioSynth, Button);
+  var GameState = gGameState;
+  console.assert(0 < Button && Button <= GameState.ButtonCount,
+    " Invalid button number. Must be greater than 0 & less than button count");
+  GameUpdate(GameState, gAudioSynth, Button);
   return;
 }
+
+
 
 function SoundButtonPressHandler(Button) {
   var GameState = gGameState;
   console.assert(0 < Button && Button <= GameState.ButtonCount,
     " Invalid button number. Must be greater than 0 & less than button count");
   GameState.LastButton = Button;
+  GameState.LastButtonColor = GetButtonColorAsFloat3(Button);
 
   var Sequence = GameState.Squid ? SquidSequence : GameSequence;
-  if (!Sequence.IsPlaying) {
+  if (!Sequence.GamePlaying) {
     var Pitch = Sequence.ButtonTable[Button];
 
     var Freq = sequence.PitchToFreqTable[Pitch];
@@ -570,7 +565,7 @@ function AudioPauseTone(Audio, Callback) {
 //Pitch: is a letter coressponding to a frequency
 //Duration: is a ratio of time that can be used to calc the time(ms) that a pitch is held
 function SequenceBegin(Sequence, Audio, Index, NoteCount, Pitch, HoldMs, Button) {
-  console.assert(Audio != undefined, "Pass Audio state");
+  console.assert(Audio != undefined, "Audio state missing");
 
   var Freq = sequence.PitchToFreqTable[Pitch];
   LightButton(Button);
@@ -636,6 +631,49 @@ function SequenceButtonFromPitch(Sequence, Pitch) {
   return Result;
 }
 
+function SequenceButtonRotate(Sequence) {
+  //Get style from load style sheet
+  var Button1 = document.getElementById("Button01");
+  var Button2 = document.getElementById("Button02");
+  var Button3 = document.getElementById("Button03");
+  var Button1Style = window.getComputedStyle(Button1);
+  var Button2Style = window.getComputedStyle(Button2);
+  var Button3Style = window.getComputedStyle(Button3);
+  var Button1Color = Button1Style.getPropertyValue("background");
+  var Button2Color = Button2Style.getPropertyValue("background");
+  var Button3Color = Button3Style.getPropertyValue("background");
+
+  var rnd = Math.floor(Math.random() * 1000) % 3;
+  //TODO(): add support for arbitrary number of a button swaps.
+  switch (rnd) {
+    case 0:
+      {
+        Button1.style.background = Button2Color;
+        Button2.style.background = Button1Color;
+        var tmp = Sequence.ButtonTable[1];
+        Sequence.ButtonTable[1] = Sequence.ButtonTable[2];
+        Sequence.ButtonTable[2] = tmp;
+      } break;
+    case 1:
+      {
+        Button2.style.background = Button3Color;
+        Button3.style.background = Button2Color;
+        var tmp = Sequence.ButtonTable[2];
+        Sequence.ButtonTable[2] = Sequence.ButtonTable[3];
+        Sequence.ButtonTable[3] = tmp;
+      } break;
+    case 2:
+      {
+        Button1.style.background = Button3Color;
+        Button3.style.background = Button1Color;
+        var tmp = Sequence.ButtonTable[1];
+        Sequence.ButtonTable[1] = Sequence.ButtonTable[3];
+        Sequence.ButtonTable[3] = tmp;
+      } break;
+  }
+}
+
+
 
 /**************************************************
  *   WEB OPENGL
@@ -695,7 +733,8 @@ function OpenglMain() {
     uniform float u_time;
     uniform vec2  u_resolution;
     uniform int  u_squid;
-    uniform int u_button;
+    uniform int  u_button;
+    uniform vec3 u_buttoncolor;
 
     #define PI32 3.141592653589793238462
 
@@ -734,6 +773,20 @@ function OpenglMain() {
                     Y  , 1.0);
     }
 
+    mat2 Rotate(float x)
+    {
+      return mat2(cos(x), -sin(x),
+                  sin(x),  cos(x));
+    }
+
+    float Circle(vec2 uv, float Radius)
+    {
+      vec2 Dist = uv-vec2(0.5,0.5);
+      return 1.0-smoothstep(Radius+(Radius*-0.310),
+                           Radius-(Radius*-1.390),
+                           dot(Dist,Dist)*4.0);
+    }
+
     float Triangle(vec2 uv)
     {
       uv.y += 0.2;
@@ -753,25 +806,27 @@ function OpenglMain() {
     {
       //TODO(): Clean all of this stuff up...
       vec2 uv  = (gl_FragCoord.xy-0.5*u_resolution.xy)/u_resolution.y;
-      vec3 Color = vec3(0.8, 0.5, 0.5);
+      vec3 Color = vec3(0.1, 0.1, 0.1);
   
-      if(false) {}
-      else if(u_button == 1) { Color = vec3(0.3, 0.5, 0.3); }
-      else if(u_button == 2) { Color = vec3(0.3, 0.4, 0.5); }
-      else if(u_button == 3) { Color = vec3(1.0, 0.8, 0.0); }
-      else if(u_button == 4) { Color = vec3(1.0, 0.0, 0.0); }
+      if(u_button > 0)
+      {
+        Color = u_buttoncolor-0.1;
+      }
+ 
 
       if(u_squid == 0)
       {
-        uv.x *= 10.0;
-        uv.y *= 10.0;
+       
+        float Foward = 0.130+ sin(u_time*0.00001)*2.0;
+        uv *= 1.0/Foward;
+        uv*= Rotate(u_time*0.00008);
         //TODO(): Study this effect on uv space v
         //uv = vec2(2.0*atan(uv.x, uv.y), 0.002*length(uv*uv));
         
-        uv += u_time*0.0002;
+        //uv += u_time*0.0002;
         //TODO(): Understand why Shear(sin(t),0.0) makes the seem like its
         //        translating the uv space.
-        ///uv *= 1.0/length(uv*uv*uv);
+        uv *= 1.0/length(uv*uv);
         uv *= Shear(0.0, 0.0);
         vec2 gv = fract(uv)-0.5;
         vec2 CellId = floor(uv);
@@ -789,12 +844,12 @@ function OpenglMain() {
         
         //TODO(): Keep the pattern as is but make a clear seperation betweeen
         //        the grid Colorors and the truchet line. less jank
-        //Color.r = Grid(gv);
-        Color -= Hash(CellId);
-        Color.gb += Hash(-CellId) + Mask * 0.003;
+        Color.r += Grid(gv)*Grid(gv);
+        //Color -= Hash(CellId);
+        Color += Hash(-CellId) + Mask * 0.003;
         Color += Mask;
 
-        Color-= 0.6;
+        Color-= 0.6 + Circle(uv, 100.0);
       }
       else
       {    
@@ -824,6 +879,7 @@ function OpenglMain() {
   var UIdResolution = gl.getUniformLocation(program, "u_resolution");
   var UIdSquid = gl.getUniformLocation(program, "u_squid");
   var UIdButton = gl.getUniformLocation(program, "u_button");
+  var UIdButtonColor = gl.getUniformLocation(program, "u_buttoncolor");
 
   var positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -876,6 +932,7 @@ function OpenglMain() {
     gl.uniform1f(UIdTime, now);
     gl.uniform1i(UIdSquid, gGameState.Squid);
     gl.uniform1i(UIdButton, gGameState.LastButton);
+    gl.uniform3fv(UIdButtonColor, new Float32Array(gGameState.LastButtonColor));
     gl.uniform2fv(UIdResolution, new Float32Array(resolution));
     var primitiveType = gl.TRIANGLES;
     var offset = 0;
