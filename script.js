@@ -197,7 +197,7 @@ function GameStartRound(GameState, Audio) {
   //        sequences have all the data to create and remove buttons easily...
   //
   if (GameState.Squid) {
-    GameDisplayStatus(GameState, "Squid Round!!!");
+    GameDisplayStatus(GameState, "Squid Round!!!", false);
     GameState.GamePlaying = true;
     GameState.GameWon = false;
     GameState.Progress = SquidSequence.Sheet.length;
@@ -213,7 +213,7 @@ function GameStartRound(GameState, Audio) {
     SequencePlay(SquidSequence, Audio, GameState.Progress);
   }
   else {
-    GameDisplayStatus(GameState, "New Round!!!");
+    GameDisplayStatus(GameState, "New Round!!!", false);
     GameState.GamePlaying = true;
     GameState.GameWon = false;
     GameState.Progress = PROGRESS_START_INDEX;
@@ -265,7 +265,7 @@ function GameEnd(GameState) {
 function GamePromptYesNo(GameState, Question) {
   //very squid specific function...
   console.assert(GameState.StatusElm != undefined, "There is no handle to StatusElm");
-  GameDisplayStatus(GameState, Question);
+  GameDisplayStatus(GameState, Question, false);
   var YesButton = document.createElement("button");
   var NoButton = document.createElement("button");
   YesButton.setAttribute("id", "SYB");
@@ -278,8 +278,7 @@ function GamePromptYesNo(GameState, Question) {
     gGameState.SquidPrompted = false;
     gGameState.StatusElm.removeChild(document.getElementById("SYB"));
     gGameState.StatusElm.removeChild(document.getElementById("SNB"));
-    gGameState.StatusElm.classList.add("hidden");
-    GameDisplayStatus(gGameState, "");
+    GameDisplayStatus(gGameState, "", true);
   };
   NoButton.onclick = function () {
     gGameState.Squid = false;
@@ -287,69 +286,85 @@ function GamePromptYesNo(GameState, Question) {
     gGameState.SquidPrompted = false;
     gGameState.StatusElm.removeChild(document.getElementById("SYB"));
     gGameState.StatusElm.removeChild(document.getElementById("SNB"));
-    gGameState.StatusElm.classList.add("hidden");
-    GameDisplayStatus(gGameState, "");
+    GameDisplayStatus(gGameState, "", true);
   }
   GameState.StatusElm.appendChild(YesButton);
   GameState.StatusElm.appendChild(NoButton);
+  console.assert(GameState.StatusElm.childElementCount <= 3, "There are too many children in gameStatus! Expected 3.")
   return;
 }
 
 function GameDisplayResult(GameState) {
-  if (GameState.GameWon && !GameState.Squid) {
-    GameDisplayTempStatus(GameState, 6000, "Game Over. You Won!.");
-  }
-  else if (GameState.GameWon && GameState.Squid) {
-    GameDisplayTempStatus(GameState, 6000, "you win the monies!");
+  if (GameState.Squid) {
+    if (GameState.SquidWon) {
+      GameDisplayTempStatus(GameState, 2000, "you win the monies! jk no moniess :(", true, "");
+    }
+    else {
+      GameDisplayTempStatus(GameState, 2000, "you lose you life. jk", true, "");
+    }
   }
   else {
-    GameDisplayTempStatus(GameState, 6000, "Game Over. You lost.");
+    if (GameState.GameWon) {
+      GameDisplayTempStatus(GameState, 2000, "Game Over. You Won!.", true, "");
+    }
+    else {
+      GameDisplayTempStatus(GameState, 2000, "Game Over. You lost.", true, "");
+    }
   }
+  return;
 }
 
-function GameDisplayStatus(GameState, Status) {
+function GameDisplayStatus(GameState, Status, Hide) {
   var StatusElm = GameState.StatusElm;
   console.assert(GameState.StatusElm != undefined,
     "There is no handle to StatusElm");
 
-  if (Status == undefined) {
+  console.assert(Status != undefined, "Status undefined. How to handle this?")
+  if (Hide) {
     StatusElm.classList.add("hidden");
     return;
   }
-  var Para;
+
+  var Header;
   if (StatusElm.childElementCount == 0) {
-    Para = document.createElement("h1");
-    StatusElm.appendChild(Para);
+    Header = document.createElement("h1");
+    StatusElm.appendChild(Header);
   }
   else {
-    Para = StatusElm.firstChild;
+    Header = StatusElm.firstChild;
+    console.assert(Header.tagName == "H1", "First child of gameStatus is not a header.");
   }
 
-  Para.innerHTML = Status;
+  Header.innerHTML = Status;
 
   StatusElm.classList.remove("hidden");
   return;
 }
 
-function GameDisplayTempStatus(GameState, HoldMs, Status) {
+function GameDisplayTempStatus(GameState, HoldMs, TempStatus, HideAtTimeout, RestoreStatus) {
   var StatusElm = GameState.StatusElm;
   console.assert(GameState.StatusElm != undefined,
     "There is no handle to StatusElm");
 
   //document.getElementById("startButton").classList.add("hidden");
-  var Para;
+  var Header;
   if (StatusElm.childElementCount == 0) {
-    Para = document.createElement("h1");
-    StatusElm.appendChild(Para);
+    Header = document.createElement("h1");
+    StatusElm.appendChild(Header);
   }
   else {
-    Para = StatusElm.firstChild;
+    Header = StatusElm.firstChild;
+    console.assert(Header.tagName == "H1", "First child of gameStatus is not a header.");
   }
+  //Its okay for this to be undefined
+  if (RestoreStatus == undefined) {
+    RestoreStatus = Header.innerHTML;
+  }
+  //NOTE(): If "hidden" doesnt exist is it a problem.
+  Header.innerHTML = TempStatus;
+  StatusElm.classList.remove("hidden");
 
-  var OldStatus = Para.innerHTML;
-  Para.innerHTML = Status;
-
-  setTimeout(GameDisplayStatus, HoldMs, GameState, OldStatus);
+  setTimeout(GameDisplayStatus, HoldMs, GameState, RestoreStatus, HideAtTimeout);
 
 }
 
@@ -367,12 +382,10 @@ function GameUpdate(GameState, Audio, Button) {
     if (GameIsGuessCorrect(GameState, Sequence, Button)) {
       if (GameIsRoundOver(GameState, Sequence, GameState.Progress)) {
         if (GameIsFinish(GameState, Sequence)) {
-          if(GameState.Squid)
-          {
+          if (GameState.Squid) {
             GameState.SquidWon = true;
           }
-          else
-          {
+          else {
             GameState.GameWon = true;
             GameState.TimesWon++;
           }
@@ -391,13 +404,15 @@ function GameUpdate(GameState, Audio, Button) {
         }
       }
     } else {
-      if (GameState.TimesLost == 3) {
+      if (GameState.Squid || GameState.TimesLost == 3) {
         GameState.GameWon = false;
         GameState.GamePlaying = false;
         GameDisplayResult(GameState);
         GameEnd(GameState);
       }
       else {
+        console.assert(!GameState.Squid, "GameState Squid State set in an invalid code path.");
+
         GameState.GuessCount = 0;
         GameState.TimesLost++;
         GameDisplayStatus(GameState,
@@ -416,15 +431,22 @@ function GameUpdate(GameState, Audio, Button) {
         "Would you like to win all the moniesss but " +
         "suffer a horrible fate if you loose? ");
 
-      //NOTE(): will this always be set to true before the user replies?
+      //NOTE(): Will this always be set to true before the user replies?
       GameState.SquidPrompted = true;
       return;
     }
-    //NOTE(): start squid round or end game
-    if (GameState.GameWon && GameState.Squid) {
+    if (GameState.Squid && GameState.GameWon) {
+      //Start Squid Round
       GameStartRound(GameState, Audio);
     }
+    else if (GameState.Squid && GameState.SquidWon) {
+      //End: Won Squid Game
+      GameDisplayResult(GameState);
+      GameEnd(GameState);
+      GameState.TimesWon++;
+    }
     else {
+      //End: Lost Normal Game
       GameDisplayResult(GameState);
       GameEnd(GameState);
       GameState.TimesWon++;
@@ -742,14 +764,21 @@ function OpenglMain() {
     {
         return vec2(sin(angle), cos(angle));
     }
-
-        float Grid(vec2 gv)
+    
+    float Grid(vec2 gv)
     {
         float Result = 0.0;
         if(gv.x > .48  || gv.y > .48)
         { Result = 1.0; }
         return Result;
     }
+   
+    float Grid2(vec2 uv, float LineWidth, float Granularity)
+    {
+      vec2 Result = smoothstep(0.0, 0.00002, Granularity - fract(uv * LineWidth));
+      return Result.x * Result.y - 0.1;
+    }
+
 
     float Hash(vec2 In)
     {
@@ -789,6 +818,7 @@ function OpenglMain() {
 
     float Triangle(vec2 uv)
     {
+      float Result = 0.0;
       uv.y += 0.2;
       vec2 normal = vec2(0.0);
       uv *= 1.5;
@@ -797,11 +827,79 @@ function OpenglMain() {
       normal = GetNormal(13.0*PI32/6.0);
       uv -= normal * max(0.0, dot(uv, normal)) * 2.0;
       
-      float line = length(uv - vec2(clamp(uv.x, -1.3, 1.0), 0.0));
-      line = min(1.0, line); //NOTE(): Original line
-
-      return smoothstep(0.01, 0.0099, 0.15*line);
+      //Result += Grid2(uv, 0.001, 1.0); //For Debbugging
+      float Line = length(uv - vec2(clamp(uv.x, -1.3, 1.0), 0.0));
+      Line = min(1.0, Line); //NOTE(): Original line
+      Line = smoothstep(0.01, 0.0099, 0.15*Line);
+      Result += Line;
+      return Result;
     }
+
+    vec3 Circle(float OutDia, float InDia, vec2 uv, vec3 Color)
+    {
+      uv.y -= 0.1;
+      float Delta = distance(uv, vec2(0.0));
+      return vec3(step(InDia ,  Delta) *
+                  step(-OutDia, -Delta) + Color.x,
+                  step(InDia ,  Delta) *
+                  step(-OutDia, -Delta) + Color.y,
+                  step(InDia ,  Delta) *
+                  step(OutDia, -Delta) + Color.z);
+    }
+
+
+    float Square(vec2 uv)
+    {
+      float Result = 0.0;
+      #if 1
+      uv.y -= 0.11;
+      uv = abs(uv);
+
+      float BS = 0.028;
+      float SS = 0.038;
+      float BigSquare = smoothstep(0.01, 0.0099, uv.x*BS) * smoothstep(0.01, 0.0099, uv.y*BS);
+      float SmallSquare = smoothstep(0.01, 0.0099, uv.x*SS) * smoothstep(0.01, 0.0099, uv.y*SS);
+      float Intersection = BigSquare - SmallSquare;
+      Result =  Intersection;
+      #else
+      ///probably one of the worsts ways to make a square...
+      vec2 st = uv;
+      vec2 normal = vec2(0.0);
+
+      uv.y += 0.33;
+      uv *= 1.5;
+      
+      uv.x = abs(uv.x);
+      uv.x -= 0.5;
+      normal = GetNormal(PI32/4.0);
+      uv -= normal * max(0.0, dot(uv, normal)) * 2.0;
+      normal = GetNormal(PI32/50.0);
+      
+      
+      float Line = length(uv - vec2(clamp(uv.x, -1.3, 1.0), 0.0));
+      Line = min(1.0, Line); //NOTE(): Original line
+      Line = smoothstep(0.01, 0.0099, 0.15*Line);
+      Result += Line;
+      
+      normal = vec2(0.0);
+      uv.y = abs(uv.y);
+      uv = st;
+      uv.y -= 0.33;
+      uv *= 1.5;
+      
+      uv.x = abs(uv.x);
+      uv.x -= 0.5;
+      normal = GetNormal(3.0*PI32/4.0);
+      uv -= normal * max(0.0, dot(uv, normal)) * 2.0;
+      Line = length(uv - vec2(clamp(uv.x, -1.3, 1.0), 0.0));
+      Line = min(1.0, Line); //NOTE(): Original line
+      Line = smoothstep(0.01, 0.0099, 0.15*Line);
+      Result += Line;
+      Result += 1.0-Grid2(uv, 0.01, 1.0);
+      #endif
+      return Result;
+    }
+
     void main()
     {
       //TODO(): Clean all of this stuff up...
@@ -854,12 +952,23 @@ function OpenglMain() {
       else
       {    
         Color -= 0.3;
-        
-        Color += Triangle(uv);
-        vec3 grid = vec3(0.1);
-        Color += grid;
 
-        //grid.rg -= smoothstep(0.0, 0.00001, 1.0 - fract(uv * 0.00001));
+        float Shape = 0.0;
+
+        float Where = mod(float(u_button), 3.0);
+        if(Where == 1.0)
+        {
+          Shape = Square(uv);
+        }
+        else if(Where == 2.0)
+        {
+          Shape = Circle(0.35, 0.25, uv, vec3(0.1, 1.0, 1.0)).x;
+        }
+        else
+        {
+          Shape = Triangle(uv);
+        }
+        Color += Shape;
       }
       
       gl_FragColor=vec4(Color, 1.0);
