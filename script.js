@@ -516,7 +516,9 @@ function SoundButtonClickHandler(Button) {
   var GameState = gGameState;
   console.assert(0 < Button && Button <= GameState.ButtonCount,
     " Invalid button number. Must be greater than 0 & less than button count");
-  GameUpdate(GameState, gAudioSynth, Button);
+  if (GameState.GamePlaying) {
+    GameUpdate(GameState, gAudioSynth, Button);
+  }
   return;
 }
 
@@ -548,6 +550,7 @@ function SoundButtonReleaseHandler() {
 }
 
 function StartButtonHandler() {
+  console.assert(!gGameState.GamePlaying, "Start button handler called in an invalid state.")
   GameStartRound(gGameState, gAudioSynth);
   return;
 }
