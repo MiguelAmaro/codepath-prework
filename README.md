@@ -4,7 +4,7 @@
 
 Submitted by: Miguel Amaro
 
-Time spent: **12** hours spent in total
+Time spent: **20** hours spent in total
 
 Link to project: https://ninth-nonstop-transport.glitch.me
 
@@ -25,7 +25,7 @@ The following **optional** features are implemented:
 - [x] Any HTML page elements (including game buttons) has been styled differently than in the tutorial
 - [x] Buttons use a pitch (frequency) other than the ones in the tutorial
 - [x] More than 4 functional game buttons
-- [ ] Playback speeds up on each turn
+- [x] Playback speeds up on each turn
 - [x] Computer picks a different pattern each time the game is played
 - [x] Player only loses after 3 mistakes (instead of on the first mistake)
 - [ ] Game button appearance change goes beyond color (e.g. add an image)
@@ -34,14 +34,17 @@ The following **optional** features are implemented:
 
 The following **additional** features are implemented:
 
-- [x] Dynic background textures usin shaders
+- [x] Dynamic background textures using shaders
 - [x] Random Button Rotation in Bonus found
+- [x] Asking the user to wait for the sequence to finish if they pres button while it is playing
+- [x] Random sequence generation
+- []
 
 ## Video Walkthrough (GIF)
 
 If you recorded multiple GIFs for all the implemented features, you can add them here:
-![](gif1-link-here)
-![](gif2-link-here)
+![](https://github.com/MiguelAmaro/codepath-prework/blob/main/gifs/miss.gif?raw=true)
+![](https://github.com/MiguelAmaro/codepath-prework/blob/main/gifs/squid.gif?raw=true)
 ![](gif3-link-here)
 ![](gif4-link-here)
 
