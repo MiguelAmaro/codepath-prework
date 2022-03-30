@@ -50,6 +50,8 @@ class sequence {
     this.Sheet = Sheet;
     this.ButtonTable = ButtonTable;
     this.OldButtonTable = ButtonTable;
+    //TODO(): asssert the button table length +1 == html buttoncount
+    //console.assert();
   }
 }
 
@@ -110,10 +112,17 @@ class audiosynth {
 //App Components
 var gGameState = new gamestate();
 var gAudioSynth = new audiosynth();
-var GameSequence = new sequence(800.0, 0.8,
+//NOTE(): This Sheet is Overwriten By SheetGen in GameStartRound
+var GameSequence = new sequence(1000.0, 0.8,
   [
     ["e4", 1 / 4],
     ["b3", 1 / 4],
+    ["c4", 1 / 4],
+    ["b3", 1 / 2],
+    ["c5", 1 / 2],
+    ["b4", 1 / 4],
+    ["b3", 1 / 4],
+    ["f4", 1 / 4],
   ], [null, "b3", "e4", "c5", "c4", "b4", "f4"]);
 var SquidSequence = new sequence((480.0 * 4.0), 0.8,
   [
@@ -141,52 +150,61 @@ function main() {
 }
 
 
+
 /**************************************************
- *   HELPERS
+ *   HTML - JS INTERFACE
  **************************************************/
-function Clamp(Value, Low, High, Margin) {
-  console.assert(low < high, " Clamp High & Low parameters in wrong order");
-  return (Value < Low) ? Low + Margin : (Value > High) ? High - Margin : Value;
+function SoundButtonClickHandler(Button) {
+  var GameState = gGameState;
+  console.assert(0 < Button && Button <= GameState.ButtonCount,
+    " Invalid button number. Must be greater than 0 & less than button count");
+  if (GameState.GamePlaying) {
+    GameUpdate(GameState, gAudioSynth, Button);
+  }
+  return;
 }
 
-function GetButtonColorString(Button) {
-  var Result;
-  var Button = document.getElementById("Button0" + Button);
-  var ButtonStyle = window.getComputedStyle(Button);
-  Result = ButtonStyle.getPropertyValue("background");
-  return Result;
+function SoundButtonPressHandler(Button) {
+  var GameState = gGameState;
+  console.assert(0 < Button && Button <= GameState.ButtonCount,
+    " Invalid button number. Must be greater than 0 & less than button count");
+  GameState.LastButton = Button;
+  GameState.LastButtonColor = GetButtonColorAsFloat3(Button);
+
+  var Sequence = GameState.Squid ? SquidSequence : GameSequence;
+  if (!Sequence.GamePlaying) {
+    var Pitch = Sequence.ButtonTable[Button];
+
+    var Freq = sequence.PitchToFreqTable[Pitch];
+    console.assert(Freq != undefined,
+      " Invalid lookup into PitchToFreqTable[]");
+    AudioPlayTone(gAudioSynth, Freq);
+  }
+
+  return;
 }
 
-function GetButtonColorAsFloat3(Button) {
-  var Result;
-  var RegExtactRGB8 = new RegExp("[a-z]|[(]|[)]|[0-9]+[%]|[ ]", "g");
-  var ButtonColor = GetButtonColorString(Button);
-  var ColorRGB8 = ButtonColor.replace(RegExtactRGB8, "").split(",");
-  Result = new Array(ColorRGB8[0] / 255.0,
-    ColorRGB8[1] / 255.0,
-    ColorRGB8[2] / 255.0);
-  return Result;
+function SoundButtonReleaseHandler() {
+  AudioPauseTone(gAudioSynth);
+  return;
 }
+
+function StartButtonHandler() {
+  console.assert(!gGameState.GamePlaying, "Start button handler called in an invalid state.")
+  GameStartRound(gGameState, gAudioSynth);
+  return;
+}
+
+function StopButtonHandler() {
+  GameEnd(gGameState);
+  return;
+}
+
+
 
 /**************************************************
  *   GAME STUFF
  **************************************************/
-function GamePatternGenerator(ButtonCount, TimesWon) {
-  var InitialOffset = 7;
-  var MaxPatternCount = 20;
-  var PatternCount = InitialOffset + ((TimesWon) % (MaxPatternCount - InitialOffset));
-  var NewPattern = [];
-  for (var i = 0; i < PatternCount; i++) {
-    //NOTE(): buttonscount is hard coded! wrong!
-    var num = Math.floor(Math.random() * 100) % ButtonCount;
-    var rnd = Clamp(num, 1, 6, 0.0);
-    console.assert(rnd > 0 && rnd < PatternCount, " Pattern Generator produced invalid number");
-    NewPattern.push(rnd);
-  }
-
-  return NewPattern;
-}
-
 function GameStartRound(GameState, Audio) {
   console.assert(GameState != undefined && Audio != undefined,
     " Game or Audio state missing");
@@ -202,14 +220,14 @@ function GameStartRound(GameState, Audio) {
     GameState.GameWon = false;
     GameState.Progress = SquidSequence.Sheet.length;
     GameState.GuessCount = 0;
-    //GameState.TimesLost = 0;
-    //GameState.SquidPrompted = false
     GameState.LastButton = 0;
 
     document.getElementById("startButton").classList.add("hidden");
     document.getElementById("stopButton").classList.remove("hidden");
 
-    GameSequence.IsPlaying = false;
+    SquidSequence.IsPlaying = false;
+    SquidSequence.BeatMs -= 20.0 * GameState.TimesWon;
+    console.assert(SquidSequence.BeatMs > 80, "This isnt humanly possible");
     SequencePlay(SquidSequence, Audio, GameState.Progress);
   }
   else {
@@ -227,6 +245,9 @@ function GameStartRound(GameState, Audio) {
     document.getElementById("stopButton").classList.remove("hidden");
 
     GameSequence.IsPlaying = false;
+    GameSequence.BeatMs -= 20.0 * GameState.TimesWon;
+    console.assert(GameSequence.BeatMs > 80, "This isnt humanly possible");
+    GameSequence.Sheet = SequenceSheetGenerator(GameSequence, GameState.TimesWon);
     SequencePlay(GameSequence, Audio, GameState.Progress);
   }
 
@@ -278,7 +299,6 @@ function GamePromptYesNo(GameState, Question) {
     gGameState.SquidPrompted = false;
     gGameState.StatusElm.removeChild(document.getElementById("SYB"));
     gGameState.StatusElm.removeChild(document.getElementById("SNB"));
-    GameDisplayStatus(gGameState, "", true);
   };
   NoButton.onclick = function () {
     gGameState.Squid = false;
@@ -286,7 +306,6 @@ function GamePromptYesNo(GameState, Question) {
     gGameState.SquidPrompted = false;
     gGameState.StatusElm.removeChild(document.getElementById("SYB"));
     gGameState.StatusElm.removeChild(document.getElementById("SNB"));
-    GameDisplayStatus(gGameState, "", true);
   }
   GameState.StatusElm.appendChild(YesButton);
   GameState.StatusElm.appendChild(NoButton);
@@ -300,7 +319,7 @@ function GameDisplayResult(GameState) {
       GameDisplayTempStatus(GameState, 2000, "you win the monies! jk no moniess :(", true, "");
     }
     else {
-      GameDisplayTempStatus(GameState, 2000, "you lose you life. jk", true, "");
+      GameDisplayTempStatus(GameState, 2000, "you lose you life. jk. I love you.", true, "");
     }
   }
   else {
@@ -406,9 +425,8 @@ function GameUpdate(GameState, Audio, Button) {
     } else {
       if (GameState.Squid || GameState.TimesLost == 3) {
         GameState.GameWon = false;
+        GameState.SquidWon = false;
         GameState.GamePlaying = false;
-        GameDisplayResult(GameState);
-        GameEnd(GameState);
       }
       else {
         console.assert(!GameState.Squid, "GameState Squid State set in an invalid code path.");
@@ -445,6 +463,11 @@ function GameUpdate(GameState, Audio, Button) {
       GameEnd(GameState);
       GameState.TimesWon++;
     }
+    else if (GameState.Squid && !GameState.SquidWon) {
+      //End: Lost Squid Game
+      GameDisplayResult(GameState);
+      GameEnd(GameState);
+    }
     else {
       //End: Lost Normal Game
       GameDisplayResult(GameState);
@@ -477,7 +500,7 @@ function GameIsRoundOver(GameState, Sequence, EndCount) {
   else {
     //NOTE: EndCount is typically Gamestate.Progress which starts
     //      at 1 therefore will be equal to sheet length for last
-    //      tone.
+    //      Note.
     console.assert(EndCount <= Sequence.Sheet.length,
       "Guess count out of bounds");
     Result = !(GuessCount < (EndCount - 1));
@@ -488,7 +511,7 @@ function GameIsRoundOver(GameState, Sequence, EndCount) {
 
 function GameIsFinish(GameState, Sequence) {
   //NOTE(): GameStaet.Progress starts at 1 so (sheet.len-1) 
-  //        will exlude last tone of the sequence.
+  //        will exlude last Note of the sequence.
   var Result = GameState.Progress == Sequence.Sheet.length;
   return Result;
 }
@@ -508,79 +531,6 @@ function ClearButton(Button) {
   return;
 }
 
-
-/**************************************************
- *   HTML - JS INTERFACE
- **************************************************/
-function SoundButtonClickHandler(Button) {
-  var GameState = gGameState;
-  console.assert(0 < Button && Button <= GameState.ButtonCount,
-    " Invalid button number. Must be greater than 0 & less than button count");
-  if (GameState.GamePlaying) {
-    GameUpdate(GameState, gAudioSynth, Button);
-  }
-  return;
-}
-
-
-
-function SoundButtonPressHandler(Button) {
-  var GameState = gGameState;
-  console.assert(0 < Button && Button <= GameState.ButtonCount,
-    " Invalid button number. Must be greater than 0 & less than button count");
-  GameState.LastButton = Button;
-  GameState.LastButtonColor = GetButtonColorAsFloat3(Button);
-
-  var Sequence = GameState.Squid ? SquidSequence : GameSequence;
-  if (!Sequence.GamePlaying) {
-    var Pitch = Sequence.ButtonTable[Button];
-
-    var Freq = sequence.PitchToFreqTable[Pitch];
-    console.assert(Freq != undefined,
-      " Invalid lookup into PitchToFreqTable[]");
-    AudioPlayTone(gAudioSynth, Freq);
-  }
-
-  return;
-}
-
-function SoundButtonReleaseHandler() {
-  AudioPauseTone(gAudioSynth);
-  return;
-}
-
-function StartButtonHandler() {
-  console.assert(!gGameState.GamePlaying, "Start button handler called in an invalid state.")
-  GameStartRound(gGameState, gAudioSynth);
-  return;
-}
-
-function StopButtonHandler() {
-  GameEnd(gGameState);
-  return;
-}
-
-
-
-/**************************************************
- *   AUDIO
- **************************************************/
-function AudioPlayTone(Audio, Freq) {
-  Audio.Context.resume();
-  Audio.Oscillator.frequency.value = Freq;
-  Audio.Gain.gain.setTargetAtTime(Audio.Volume, Audio.Context.currentTime + 0.05, 0.025);
-  Audio.Context.resume();
-
-  return;
-}
-
-function AudioPauseTone(Audio, Callback) {
-  Audio.Gain.gain.setTargetAtTime(0, Audio.Context.currentTime + 0.05, 0.025);
-  if (Callback != undefined) {
-    Callback(arguments[2], arguments[3], arguments[4]);
-  }
-  return;
-}
 
 
 
@@ -657,7 +607,7 @@ function SequenceButtonFromPitch(Sequence, Pitch) {
 }
 
 function SequenceButtonRotate(Sequence) {
-  //Get style from load style sheet
+  //Get style from style sheet
   var Button1 = document.getElementById("Button01");
   var Button2 = document.getElementById("Button02");
   var Button3 = document.getElementById("Button03");
@@ -698,10 +648,103 @@ function SequenceButtonRotate(Sequence) {
   }
 }
 
+function SequenceSheetGenerator(Sequence, Accumalator) {
+  var MaxPatternCount = 20; //TODO(): Make user controlable
+  var InitialPatternCount = 7;
+  var PatternCount = InitialPatternCount + ((Accumalator) % (MaxPatternCount - InitialPatternCount));
+  var Result = [];
+
+  for (var i = 0; i < PatternCount; i++) {
+    var Note = [];
+    //Get Random Pitch from button table
+    var ButtonCount = Sequence.ButtonTable.length - 1;
+    var RndIndex = 1 + ((Math.floor(Math.random() * 100.0)) % ButtonCount);
+    console.assert(0 < RndIndex && RndIndex <= ButtonCount, "Generated invalid ButtonTable index.");
+    Note[0] = Sequence.ButtonTable[RndIndex];
+
+    //Get Random Duration
+    var Exp = (Math.floor(Math.random() * 100.0)) % 3; //1/16 & 1/32 notes are rediculous...
+    console.assert(Exp <= 5, "Generated an exponent greater than 5");
+    Note[1] = 1.0 / Math.pow(2.0, Exp);
+
+    Result[i] = Note;
+  }
+
+  return Result;
+}
+
+function SequenceGenerateButtons(Sequence) {
+  //NOTE(): Not gonna write this fucntion
+  // Calc Tone for button table
+
+  var BasePitch = "a".charCodeAt(0);
+  var BasePitchLevel = 3;
+  //loop
+  var Note = [];
+  var PitchAscii = BasePitch + (Math.floor(Math.random() * 100.0)) % 6;
+  console.assert(97 <= PitchAscii && PitchAscii <= 103, "Generated an invalid base Pitch!");
+  var Pitch = String.fromCharCode(PitchAscii);
+
+  var PitchLevel = BasePitchLevel + (Math.floor(Math.random() * 100.0)) % 4;
+  console.assert(3 <= PitchLevel && PitchLevel <= 6, "Generated an invalid base Pitch!");
+  console.log(Pitch + PitchLevel);
+  Note[0] = (Pitch + PitchLevel);
+  return;
+}
 
 
 /**************************************************
- *   WEB OPENGL
+ *   HELPERS
+ **************************************************/
+function Clamp(Value, Low, High, Margin) {
+  console.assert(low < high, " Clamp High & Low parameters in wrong order");
+  return (Value < Low) ? Low + Margin : (Value > High) ? High - Margin : Value;
+}
+
+function GetButtonColorString(Button) {
+  var Result;
+  var Button = document.getElementById("Button0" + Button);
+  var ButtonStyle = window.getComputedStyle(Button);
+  Result = ButtonStyle.getPropertyValue("background");
+  return Result;
+}
+
+function GetButtonColorAsFloat3(Button) {
+  var Result;
+  var RegExtactRGB8 = new RegExp("[a-z]|[(]|[)]|[0-9]+[%]|[ ]", "g");
+  var ButtonColor = GetButtonColorString(Button);
+  var ColorRGB8 = ButtonColor.replace(RegExtactRGB8, "").split(",");
+  Result = new Array(ColorRGB8[0] / 255.0,
+    ColorRGB8[1] / 255.0,
+    ColorRGB8[2] / 255.0);
+  return Result;
+}
+
+
+
+/**************************************************
+ *   AUDIO
+ **************************************************/
+function AudioPlayTone(Audio, Freq) {
+  Audio.Context.resume();
+  Audio.Oscillator.frequency.value = Freq;
+  Audio.Gain.gain.setTargetAtTime(Audio.Volume, Audio.Context.currentTime + 0.05, 0.025);
+  Audio.Context.resume();
+
+  return;
+}
+
+function AudioPauseTone(Audio, Callback) {
+  Audio.Gain.gain.setTargetAtTime(0, Audio.Context.currentTime + 0.05, 0.025);
+  if (Callback != undefined) {
+    Callback(arguments[2], arguments[3], arguments[4]);
+  }
+  return;
+}
+
+
+/**************************************************
+ *   GRAPHICS - WEB OPENGL
  **************************************************/
 "use strict";
 

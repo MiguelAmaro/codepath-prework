@@ -143,12 +143,78 @@ button {
 }
 /* Small devices (portrait tablets and large phones, 600px and up) */
 @media only screen and (min-width: 600px) {
+  .container {
+    padding-top: 10px;
+    margin: auto;
+    width: 400px;
+  }
+
+  #gameButtonArea {
+    margin-top: 5px;
+    display: flex;
+    align-content: space-between;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  #gameButtonArea > button {
+    align-self: center;
+    flex-basis: auto;
+    width: 130px;
+    height: 130px;
+    border: 2px solid #3a443a;
+  }
 }
 /* Medium devices (landscape tablets, 768px and up) */
 @media only screen and (min-width: 768px) {
+    .container {
+    padding-top: 10px;
+    margin: auto;
+    width: 90%;
+  }
+
+  #gameButtonArea {
+    margin-top: 5px;
+    display: flex;
+    align-content: space-between;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  #gameButtonArea > button {
+    align-self: center;
+    flex-basis: auto;
+    width: 130px;
+    height: 130px;
+    border: 2px solid #3a443a;
+  }
 }
 /* Large devices (laptops/desktops, 992px and up) */
 @media only screen and (min-width: 992px) {
+  .container {
+    padding-top: 40px;
+    margin: auto;
+    width: 400px;
+  }
+
+  #gameButtonArea {
+    margin-top: 5px;
+    display: flex;
+    align-content: space-between;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  #gameButtonArea > button {
+    align-self: center;
+    flex-basis: auto;
+    width: 130px;
+    height: 130px;
+    border: 2px solid #3a443a;
+  }
 }
 /* Extra large devices (large laptops and desktops, 1200px and up) */
 @media only screen and (min-width: 1200px) {
