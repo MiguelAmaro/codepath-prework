@@ -38,15 +38,12 @@ The following **additional** features are implemented:
 - [x] Random Button Rotation in Bonus found
 - [x] Asking the user to wait for the sequence to finish if they pres button while it is playing
 - [x] Random sequence generation
-- []
 
 ## Video Walkthrough (GIF)
 
 If you recorded multiple GIFs for all the implemented features, you can add them here:
 ![](https://github.com/MiguelAmaro/codepath-prework/blob/main/gifs/miss.gif?raw=true)
 ![](https://github.com/MiguelAmaro/codepath-prework/blob/main/gifs/squid.gif?raw=true)
-![](gif3-link-here)
-![](gif4-link-here)
 
 ## Reflection Questions
 
@@ -97,8 +94,7 @@ If you recorded multiple GIFs for all the implemented features, you can add them
    time invervals between the notes in the sequence is determined by one variable and the format where the each note in the sequence has associated time data.
 
 ## Interview Recording URL Link
-
-[My 5-minute Interview Recording](your-link-here)
+https://www.loom.com/share/608f6816a5ab4f33a162f26c1f4ca5b8
 
 ## License
 
